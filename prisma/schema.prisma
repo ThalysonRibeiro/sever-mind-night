@@ -1,0 +1,441 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Plan {
+  FREE
+  NORMAL
+  PREMIUM
+  TRIAL
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id                 String    @id @default(cuid())
+  name               String?
+  email              String    @unique
+  emailVerified      DateTime?
+  image              String?
+  phone              String?   @default("")
+  status             Boolean   @default(true)
+  stripe_customer_id String?
+  plan               Plan      @default(TRIAL)
+  subscriptionId     String?
+  role               Role      @default(USER)
+
+  // Novos campos
+  timezone   String?   @default("America/Sao_Paulo")
+  language   String?   @default("pt-BR")
+  lastActive DateTime?
+
+  // Relações existentes
+  diaries      Diaries[]
+  subscription Subscription?
+  testimonials Testimonials?
+  themes       Themes?
+
+  // Novas relações
+  settings      UserSettings?
+  stats         UserStats?
+  achievements  UserAchievement[]
+  notifications PushNotification[]
+  backups       BackupData[]
+  feedback      Feedback[]
+
+  refreshToken  String? // Para integração OAuth (Google Drive, etc.)
+  accounts      Account[]
+  sessions      Session[]
+  Authenticator Authenticator[]
+
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  AuditLog  AuditLog[]
+  AIUsage   AIUsage[]
+
+  @@index([email])
+  @@index([plan])
+  @@index([lastActive])
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+model Authenticator {
+  credentialID         String  @unique
+  userId               String
+  providerAccountId    String
+  credentialPublicKey  String
+  counter              Int
+  credentialDeviceType String
+  credentialBackedUp   Boolean
+  transports           String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, credentialID])
+}
+
+model Subscription {
+  id      String @id @default(cuid())
+  status  String
+  plan    Plan
+  priceId String
+
+  userId    String    @unique
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([status])
+  @@index([expiresAt])
+}
+
+model Diaries {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+  image       String
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  Dream     Dream[]
+
+  @@index([createdAt])
+  @@index([userId])
+}
+
+model Category {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+  color       String?
+  icon        String?
+
+  dreams Dream[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+}
+
+model Dream {
+  id String @id @default(cuid())
+
+  title          String?
+  content        String
+  interpretedAt  DateTime?
+  interpretation Json?
+
+  diariesId String
+  diaries   Diaries @relation(fields: [diariesId], references: [id], onDelete: Cascade)
+
+  // Categoria
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+
+  // Análises adicionais
+  duration      String? // "short", "medium", "long"
+  vividness     Int? // 1-5
+  recallClarity Int? // 1-5
+
+  // Dados específicos do mobile
+  voiceRecording String? // URL do áudio
+  drawings       String[] // URLs dos desenhos
+
+  exportUrl     String? // PDF gerado (opcional)
+  tags          String[] // símbolos extraídos pela IA
+  mood          String? // ex: "ansioso", "curioso"
+  lucid         Boolean? // sonho lúcido?
+  isPrivate     Boolean  @default(true) // controle de privacidade
+  favorite      Boolean?
+  aiAttempts    Int      @default(0)
+  lastAiMessage String? // último retorno da IA (erro, aviso, etc.)
+
+  // Soft delete
+  deletedAt DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  AIUsage   AIUsage[]
+
+  @@index([diariesId])
+  @@index([createdAt])
+  @@index([categoryId])
+  @@index([mood])
+  @@index([isPrivate])
+  @@index([favorite])
+  @@index([deletedAt])
+}
+
+model UserSettings {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Notificações
+  pushNotifications  Boolean @default(true)
+  emailNotifications Boolean @default(true)
+  dreamReminders     Boolean @default(true)
+  reminderTime       String? // "08:00"
+
+  // Privacidade
+  shareStatistics Boolean @default(false)
+  publicProfile   Boolean @default(false)
+
+  // App
+  language String @default("pt-BR")
+  timezone String @default("America/Sao_Paulo")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model UserStats {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  totalDreams   Int       @default(0)
+  streakDays    Int       @default(0)
+  longestStreak Int       @default(0)
+  lastDreamDate DateTime?
+
+  // Análises de humor
+  commonMoods Json? // {"anxious": 15, "happy": 8}
+  commonTags  Json? // {"water": 5, "flying": 3}
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([totalDreams])
+  @@index([streakDays])
+  @@index([lastDreamDate])
+}
+
+model PushNotification {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title String
+  body  String
+  type  String // "reminder", "interpretation_ready", "weekly_summary"
+  read  Boolean @default(false)
+  sent  Boolean @default(false)
+
+  // Dados específicos do push
+  data Json? // dados extras para o push
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([type])
+  @@index([read])
+  @@index([sent])
+  @@index([createdAt])
+}
+
+model Achievement {
+  id          String @id @default(cuid())
+  key         String @unique
+  name        String
+  description String
+  icon        String
+  condition   Json // condições para desbloquear
+
+  userAchievements UserAchievement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+}
+
+model UserAchievement {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  unlockedAt DateTime @default(now())
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+  @@index([unlockedAt])
+}
+
+model BackupData {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  data   Json // dados do backup
+  type   String // "full", "incremental"
+  status String // "pending", "completed", "failed"
+  size   Int? // tamanho do backup em bytes
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Feedback {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type     String // "bug", "feature", "general"
+  subject  String
+  message  String
+  status   String @default("open") // "open", "in_progress", "resolved"
+  priority String @default("medium") // "low", "medium", "high"
+
+  // Dados do dispositivo (para mobile)
+  deviceInfo Json?
+
+  // Resposta da equipe
+  response    String?
+  respondedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+  @@index([priority])
+  @@index([createdAt])
+}
+
+model Testimonials {
+  id      String @id @default(cuid())
+  message String
+  rating  Int
+  userId  String @unique
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Campos adicionais
+  approved Boolean @default(false)
+  featured Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([rating])
+  @@index([approved])
+  @@index([featured])
+  @@index([createdAt])
+}
+
+model Themes {
+  id         String @id @default(cuid())
+  color      String
+  background String
+  font       String
+
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Tabela para auditoria de ações importantes
+model AuditLog {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  action   String // "create_dream", "delete_dream", "upgrade_plan", etc.
+  entity   String // "dream", "user", "subscription", etc.
+  entityId String? // ID da entidade afetada
+
+  oldValues Json? // valores antigos (para updates)
+  newValues Json? // valores novos
+
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([entity])
+  @@index([createdAt])
+}
+
+// Tabela para controle de rate limiting da IA
+model AIUsage {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  dreamId String? // ID do sonho interpretado
+  dream   Dream?  @relation(fields: [dreamId], references: [id], onDelete: SetNull)
+
+  tokens  Int // tokens utilizados
+  cost    Float? // custo da operação
+  success Boolean @default(true)
+  error   String? // mensagem de erro se houve falha
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([dreamId])
+  @@index([createdAt])
+}
