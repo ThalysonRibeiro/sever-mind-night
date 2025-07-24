@@ -6,6 +6,7 @@ import swaggerUi from '@fastify/swagger-ui'
 import { config } from '../config/env.ts'
 import cors from "./cors.ts";
 import rateLimitPlugin from "./rateLimitPlugin.ts";
+import { verifyRole } from './auth.ts'
 
 export const setupPlugins = async (fastify: FastifyInstance) => {
   // CORS
@@ -73,4 +74,8 @@ export const setupPlugins = async (fastify: FastifyInstance) => {
       reply.code(401).send({ error: 'Unauthorized' })
     }
   })
+
+  // Role verification decorator
+  fastify.decorate('verifyRole', verifyRole)
+  fastify.decorate('verifyAdmin', verifyRole('admin'))
 }

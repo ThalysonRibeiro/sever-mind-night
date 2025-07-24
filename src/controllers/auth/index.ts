@@ -2,11 +2,77 @@ import type { FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../../lib/prisma.ts'
 import { getGoogleAuthUrl, getGoogleUserInfo } from '../../lib/google-auth.ts'
+import { addWeeks } from 'date-fns'
+import { PLANS_INTERPRETATION_QUOTA } from '../../utils/constants.ts'
 
 const googleCallbackSchema = z.object({
   code: z.string(),
   state: z.string().optional(),
 })
+
+// FUNÇÃO HELPER PARA EVITAR DUPLICAÇÃO DE CÓDIGO
+async function createUserWithRelatedRecords(userData: {
+  email: string;
+  name?: string | null;
+  image?: string | null;
+  emailVerified?: Date | null;
+  provider: string;
+}) {
+  return await prisma.$transaction(async (tx) => {
+    // Create user
+    const user = await tx.user.create({
+      data: {
+        email: userData.email,
+        name: userData.name,
+        image: userData.image,
+        emailVerified: userData.emailVerified,
+        plan: 'TRIAL',
+        role: 'USER',
+        lastActive: new Date(),
+      },
+    });
+
+    // Create related records
+    await Promise.all([
+      // User settings
+      tx.userSettings.create({
+        data: { userId: user.id }
+      }),
+
+      // User stats
+      tx.userStats.create({
+        data: { userId: user.id }
+      }),
+
+      // Interpretation quota
+      tx.interpretationQuota.create({
+        data: {
+          userId: user.id,
+          dailyCredits: PLANS_INTERPRETATION_QUOTA.TRIAL.dailyCredits,
+          weeklyCredits: PLANS_INTERPRETATION_QUOTA.TRIAL.weeklyCredits,
+          nextResetDate: addWeeks(new Date(), 1),
+        }
+      }),
+
+      // Audit log
+      tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'user_created',
+          entity: 'user',
+          entityId: user.id,
+          newValues: {
+            email: userData.email,
+            name: userData.name,
+            provider: userData.provider
+          }
+        }
+      })
+    ]);
+
+    return user;
+  });
+}
 
 export const authControllers = {
   // Redirect to Google OAuth
@@ -29,62 +95,31 @@ export const authControllers = {
       })
 
       if (!user) {
-        // Create new user
-        user = await prisma.user.create({
-          data: {
-            email: googleUser.email,
-            name: googleUser.name,
-            image: googleUser.picture,
-            emailVerified: googleUser.verified ? new Date() : null,
-            plan: 'TRIAL',
-            role: 'USER',
-          },
-        })
-
-        // Create user settings
-        await prisma.userSettings.create({
-          data: {
-            userId: user.id,
-          }
-        })
-
-        // Create user stats
-        await prisma.userStats.create({
-          data: {
-            userId: user.id,
-          }
-        })
-
-        // Log audit
-        await prisma.auditLog.create({
-          data: {
-            userId: user.id,
-            action: 'user_created',
-            entity: 'user',
-            entityId: user.id,
-            newValues: {
-              email: user.email,
-              name: user.name,
-              provider: 'google'
-            }
-          }
-        })
+        // Create new user with all related records
+        user = await createUserWithRelatedRecords({
+          email: googleUser.email,
+          name: googleUser.name,
+          image: googleUser.picture,
+          emailVerified: googleUser.verified ? new Date() : null,
+          provider: 'google'
+        });
       } else {
-        // Update last active
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { lastActive: new Date() }
-        })
+        // Update existing user
+        await Promise.all([
+          prisma.user.update({
+            where: { id: user.id },
+            data: { lastActive: new Date() }
+          }),
 
-        // Log audit
-        await prisma.auditLog.create({
-          data: {
-            userId: user.id,
-            action: 'user_login',
-            entity: 'user',
-            entityId: user.id,
-          }
-        })
+          prisma.auditLog.create({
+            data: {
+              userId: user.id,
+              action: 'user_login',
+              entity: 'user',
+              entityId: user.id,
+            }
+          })
+        ]);
       }
 
       // Generate JWT token
@@ -122,6 +157,71 @@ export const authControllers = {
         error: 'Authentication failed',
         message: error instanceof Error ? error.message : 'Unknown error'
       })
+    }
+  },
+
+  // Handle NextJS Auth signin
+  async nextjsSignin(request: FastifyRequest, reply: FastifyReply) {
+    const nextjsSigninSchema = z.object({
+      email: z.string().email(),
+      name: z.string().optional(),
+      image: z.string().optional(),
+      googleId: z.string(),
+      verified: z.boolean(),
+    })
+
+    try {
+      const { email, name, image, googleId, verified } = nextjsSigninSchema.parse(request.body)
+
+      // Find or create user
+      let user = await prisma.user.findUnique({
+        where: { email }
+      })
+
+      if (!user) {
+        // Create new user with all related records
+        user = await createUserWithRelatedRecords({
+          email,
+          name,
+          image,
+          emailVerified: verified ? new Date() : null,
+          provider: 'nextjs-google'
+        });
+      } else {
+        // Update existing user
+        await Promise.all([
+          prisma.user.update({
+            where: { id: user.id },
+            data: {
+              lastActive: new Date(),
+              image, // Update profile image
+            }
+          }),
+
+          prisma.auditLog.create({
+            data: {
+              userId: user.id,
+              action: 'user_login',
+              entity: 'user',
+              entityId: user.id,
+            }
+          })
+        ]);
+      }
+
+      return {
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          plan: user.plan,
+          role: user.role,
+          image: user.image,
+        }
+      }
+    } catch (error) {
+      request.log.error('NextJS signin error:', error)
+      return reply.code(400).send({ error: 'Signin failed' })
     }
   },
 
@@ -171,6 +271,13 @@ export const authControllers = {
           language: true,
           lastActive: true,
           createdAt: true,
+          interpretationQuota: {
+            select: {
+              dailyCredits: true,
+              weeklyCredits: true,
+              nextResetDate: true,
+            }
+          }
         }
       })
 
@@ -184,95 +291,6 @@ export const authControllers = {
       return reply.code(500).send({
         error: 'Failed to get user info'
       })
-    }
-  },
-
-  // Handle NextJS Auth signin
-  async nextjsSignin(request: FastifyRequest, reply: FastifyReply) {
-    const nextjsSigninSchema = z.object({
-      email: z.string().email(),
-      name: z.string().optional(),
-      image: z.string().optional(),
-      googleId: z.string(),
-      verified: z.boolean(),
-    })
-
-    try {
-      const { email, name, image, googleId, verified } = nextjsSigninSchema.parse(request.body)
-
-      // Find or create user
-      let user = await prisma.user.findUnique({
-        where: { email }
-      })
-
-      if (!user) {
-        // Create new user
-        user = await prisma.user.create({
-          data: {
-            email,
-            name,
-            image,
-            emailVerified: verified ? new Date() : null,
-            plan: 'TRIAL',
-            role: 'USER',
-            lastActive: new Date(),
-          },
-        })
-
-        // Create user settings
-        await prisma.userSettings.create({
-          data: { userId: user.id }
-        })
-
-        // Create user stats
-        await prisma.userStats.create({
-          data: { userId: user.id }
-        })
-
-        // Log user creation
-        await prisma.auditLog.create({
-          data: {
-            userId: user.id,
-            action: 'user_created',
-            entity: 'user',
-            entityId: user.id,
-            newValues: { email, name, provider: 'nextjs-google' }
-          }
-        })
-      } else {
-        // Update existing user
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            lastActive: new Date(),
-            image, // Update profile image
-          }
-        })
-
-        // Log login
-        await prisma.auditLog.create({
-          data: {
-            userId: user.id,
-            action: 'user_login',
-            entity: 'user',
-            entityId: user.id,
-          }
-        })
-      }
-
-      return {
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          plan: user.plan,
-          role: user.role,
-          image: user.image,
-        }
-      }
-    } catch (error) {
-      request.log.error('NextJS signin error:', error)
-      return reply.code(400).send({ error: 'Signin failed' })
     }
   },
 }

@@ -6,13 +6,13 @@ declare module '@fastify/jwt' {
       userId: string
       email: string
       plan: string
-      role: string
+      role: 'USER' | 'ADMIN'
     }
     user: {
       userId: string
       email: string
       plan: string
-      role: string
+      role: 'USER' | 'ADMIN'
     }
   }
 }
@@ -20,5 +20,7 @@ declare module '@fastify/jwt' {
 declare module 'fastify' {
   export interface FastifyInstance {
     authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>
+    verifyRole: (role: string) => (request: FastifyRequest, reply: FastifyReply) => Promise<void>
+    verifyAdmin: (request: FastifyRequest, reply: FastifyReply) => Promise<void>
   }
 }
