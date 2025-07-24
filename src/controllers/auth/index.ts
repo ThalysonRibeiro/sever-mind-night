@@ -4,6 +4,8 @@ import { prisma } from '../../lib/prisma.ts'
 import { getGoogleAuthUrl, getGoogleUserInfo } from '../../lib/google-auth.ts'
 import { addWeeks } from 'date-fns'
 import { PLANS_INTERPRETATION_QUOTA } from '../../utils/constants.ts'
+import bcrypt from 'bcrypt'
+import { createAdminSchema } from '../../routes/auth/admin.ts'
 
 const googleCallbackSchema = z.object({
   code: z.string(),
@@ -293,4 +295,103 @@ export const authControllers = {
       })
     }
   },
+
+  //create route admin
+  async createAdmin(request: FastifyRequest, reply: FastifyReply) {
+
+    try {
+      const parsed = createAdminSchema.safeParse(request.body)
+
+      if (!parsed.success) {
+        return reply.status(400).send({ error: 'Invalid input', details: parsed.error })
+      }
+
+      const { adminSecret, email, password, name, phone } = parsed.data
+
+      if (adminSecret !== process.env.ADMIN_SECRET) {
+        return reply.status(403).send({ error: 'Unauthorized' })
+      }
+      // Check if user already exists
+      let user = await prisma.user.findUnique({
+        where: { email }
+      })
+
+      if (user) {
+        return reply.code(409).send({ error: 'User already exists' })
+      }
+      const hashedPassword = await bcrypt.hash(password, 10)
+      // Create new admin user
+      user = await prisma.user.create({
+        data: {
+          email,
+          name,
+          password: hashedPassword,
+          phone,
+          role: 'ADMIN',
+          plan: 'PREMIUM',
+          lastActive: new Date(),
+        }
+      });
+
+      // Create related records
+      await Promise.all([
+        // User settings
+        prisma.userSettings.create({
+          data: { userId: user.id }
+        }),
+
+        // User stats
+        prisma.userStats.create({
+          data: { userId: user.id }
+        }),
+
+        // Interpretation quota
+        prisma.interpretationQuota.create({
+          data: {
+            userId: user.id,
+            dailyCredits: PLANS_INTERPRETATION_QUOTA[user.plan].dailyCredits,
+            weeklyCredits: PLANS_INTERPRETATION_QUOTA[user.plan].weeklyCredits,
+            nextResetDate: addWeeks(new Date(), 1),
+          }
+        }),
+
+        // Audit log
+        prisma.auditLog.create({
+          data: {
+            userId: user.id,
+            action: 'user_created',
+            entity: 'user',
+            entityId: user.id,
+            newValues: {
+              email: email,
+              name: name,
+              provider: 'credentials'
+            }
+          }
+        })
+      ]);
+
+      return reply.status(201).send({
+        message: 'Admin created successfully',
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          plan: user.plan,
+          role: user.role,
+          language: user.language,
+          timezone: user.timezone,
+          status: user.status,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+        }
+      })
+    } catch (error) {
+      console.log('Create admin error:', error);
+
+      request.log.error('Create admin error:', error)
+      return reply.code(400).send({ error: 'Failed to create admin' })
+    }
+  }
 }

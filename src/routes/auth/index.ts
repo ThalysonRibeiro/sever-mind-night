@@ -2,13 +2,16 @@ import type { FastifyInstance } from 'fastify'
 import { googleAuthRoutes } from './google.ts'
 import { nextjsAuthRoutes } from './nextjs.ts'
 import { authControllers } from '../../controllers/auth/index.ts'
+import { adminRoutes } from './admin.ts'
 
 export const authRoutes = async (fastify: FastifyInstance) => {
   // Google auth routes (original)
   await fastify.register(googleAuthRoutes, { prefix: '/google' })
 
   // NextJS auth integration
-  await fastify.register(nextjsAuthRoutes, { prefix: '/nextjs' }) // Adicionar esta linha
+  await fastify.register(nextjsAuthRoutes, { prefix: '/nextjs' })
+
+  await fastify.register(adminRoutes, { prefix: '/admin' })
 
   // Logout route
   fastify.post('/logout', {

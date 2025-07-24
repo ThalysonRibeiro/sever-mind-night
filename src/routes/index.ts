@@ -25,10 +25,19 @@ export const setupRoutes = async (fastify: FastifyInstance) => {
     // }
   }, async () => {
     return { status: 'ok' }
-  })
+  });
+
   fastify.get('/health', async () => {
     return { status: 'ok', timestamp: new Date().toISOString() }
-  })
+  });
+
+  fastify.get('/editor-stuff', {
+    preHandler: [fastify.verifyRole('USER')]
+  }, async (request, reply) => {
+    return { message: 'You are an editor!' }
+  });
+
+
 
 
 

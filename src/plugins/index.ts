@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify'
+import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod'
 import jwt from '@fastify/jwt'
 import cookie from '@fastify/cookie'
 import swagger from '@fastify/swagger'
@@ -9,6 +10,9 @@ import rateLimitPlugin from "./rateLimitPlugin.ts";
 import { verifyRole } from './auth.ts'
 
 export const setupPlugins = async (fastify: FastifyInstance) => {
+  // 💡 Habilita uso nativo de Zod nos schemas
+  fastify.setValidatorCompiler(validatorCompiler)
+  fastify.setSerializerCompiler(serializerCompiler)
   // CORS
   await fastify.register(cors)
 
