@@ -72,4 +72,28 @@ export const adminRoutes = async (fastify: FastifyInstance) => {
       }
     },
   }, authControllers.createAdmin)
+
+  fastify.get('/', {
+    preHandler: [fastify.authenticate, fastify.verifyAdmin],
+    // schema: {
+    //   tags: ['Admin'],
+    //   summary: 'Get all admin users',
+    //   response: {
+    //     200: z.array(publicUserSchema),
+    //     400: {
+    //       type: 'object',
+    //       properties: {
+    //         error: { type: 'string' },
+    //         details: { type: 'object' },
+    //       },
+    //     },
+    //     403: {
+    //       type: 'object',
+    //       properties: {
+    //         error: { type: 'string' },
+    //       },
+    //     },
+    //   }
+    // },
+  }, authControllers.getAdmin);
 }

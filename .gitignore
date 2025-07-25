@@ -1,6 +1,10 @@
-node_modules/
 
+node_modules
 .env
+dist
+coverage
+test.db
+test.db-journal
 
-REACT_NATIVE_AUTH_FLOW.md
+REACT_NATIVE_AUTH_FLOW.md 
 rotas-auth-google.md

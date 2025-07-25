@@ -393,5 +393,19 @@ export const authControllers = {
       request.log.error('Create admin error:', error)
       return reply.code(400).send({ error: 'Failed to create admin' })
     }
+  },
+
+  async getAdmin(request: FastifyRequest, reply: FastifyReply) {
+    try {
+      const usersAdmin = await prisma.user.findMany({
+        where: {
+          role: 'ADMIN'
+        }
+      });
+      return { usersAdmin }
+    } catch (error) {
+      request.log.error('get admin error:', error)
+      return reply.code(400).send({ error: 'Failed to get admin' })
+    }
   }
 }
