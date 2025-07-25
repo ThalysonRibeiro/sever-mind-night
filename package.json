@@ -8,8 +8,8 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:ci": "jest --ci --coverage --watchAll=false",
-    "test:route": "jest --testNamePattern", // ✨ Testa rota específica
-    "test:quick": "jest --bail --verbose",   // ✨ Para debugging
+    "test:route": "jest --testNamePattern",
+    "test:quick": "jest --bail --verbose",
     "start": "node --env-file .env --experimental-strip-types --no-warnings src/server.ts",
     "dev": "node --env-file .env --experimental-strip-types --no-warnings --watch src/server.ts",
     "db:generate": "prisma generate",
