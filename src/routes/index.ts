@@ -1,28 +1,9 @@
 import type { FastifyInstance } from 'fastify'
 import { authRoutes } from './auth/index.ts'
-import z from 'zod'
 
-// const meResponseSchema = z.object({
-//   user: z.object({
-//     userId: z.string(),
-//     email: z.string().email(),
-//     plan: z.string(),
-//     role: z.string(),
-//   })
-// })
 export const setupRoutes = async (fastify: FastifyInstance) => {
   // Health check
   fastify.get('/', {
-    // schema: {
-    //   summary: 'Busca os dados do usuário autenticado',
-    //   description: 'Retorna as informações do usuário contidas no token JWT.',
-    //   tags: ['auth'], // Agrupa a rota na seção "auth" no Swagger
-    //   security: [{ Bearer: [] }], // Indica que precisa de autenticação
-    //   response: {
-    //     200: meResponseSchema, // Mapeia o schema Zod para a resposta 200 OK
-    //     401: z.object({ error: z.string() }) // Exemplo de resposta de erro
-    //   }
-    // }
   }, async () => {
     return { status: 'ok' }
   });
@@ -32,7 +13,10 @@ export const setupRoutes = async (fastify: FastifyInstance) => {
   });
 
   fastify.get('/editor-stuff', {
-    preHandler: [fastify.verifyRole('USER')]
+    preHandler: [
+      fastify.authenticate, // ← Primeiro verifica se está logado (401)
+      fastify.verifyRole('USER') // ← Depois verifica permissão (403)
+    ]
   }, async (request, reply) => {
     return { message: 'You are an editor!' }
   });

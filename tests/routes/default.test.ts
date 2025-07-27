@@ -28,6 +28,6 @@ describe('Default Routes', () => {
 
   test('GET /editor-stuff should return 401 without auth', async () => {
     const response = await supertest(fastify.server).get('/editor-stuff');
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(401);
   });
 });
