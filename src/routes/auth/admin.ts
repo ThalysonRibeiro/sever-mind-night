@@ -55,7 +55,7 @@ export const adminRoutes = async (fastify: FastifyInstance) => {
       summary: 'Create a new admin user',
       body: createAdminSchema,
       response: {
-        200: createAdminResponseSchema,
+        201: createAdminResponseSchema,
         400: {
           type: 'object',
           properties: {

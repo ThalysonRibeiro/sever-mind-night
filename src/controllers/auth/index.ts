@@ -13,7 +13,7 @@ const googleCallbackSchema = z.object({
 })
 
 // FUNÇÃO HELPER PARA EVITAR DUPLICAÇÃO DE CÓDIGO
-async function createUserWithRelatedRecords(userData: {
+export default async function createUserWithRelatedRecords(userData: {
   email: string;
   name?: string | null;
   image?: string | null;

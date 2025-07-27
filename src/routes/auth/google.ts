@@ -47,8 +47,11 @@ export const googleAuthRoutes = async (fastify: FastifyInstance) => {
                 id: { type: 'string' },
                 name: { type: 'string' },
                 email: { type: 'string' },
-                plan: { type: 'string' }
-              }
+                plan: { type: 'string' },
+                role: { type: 'string' },
+                image: { type: 'string' },
+              },
+              required: ['id', 'name', 'email', 'plan']
             },
             token: { type: 'string' }
           }
