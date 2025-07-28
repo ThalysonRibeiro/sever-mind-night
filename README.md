@@ -1,1 +1,2 @@
-## CI/CD configurado! íº€
+## CI/CD configurado! ï¿½ï¿½ï¿½
+## push
