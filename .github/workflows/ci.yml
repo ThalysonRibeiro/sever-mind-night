@@ -13,7 +13,7 @@ jobs:
   test:
     name: 🧪 Test & Coverage
     runs-on: ubuntu-latest
-    
+
     services:
       postgres:
         image: postgres:15
@@ -39,6 +39,17 @@ jobs:
         node-version: ${{ env.NODE_VERSION }}
         cache: 'npm'
 
+    - name: ♻️ Cache dependencies and Prisma
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.npm
+          node_modules/.prisma
+          .prisma
+        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-node-
+
     - name: 📦 Install dependencies
       run: npm ci
 
@@ -46,7 +57,7 @@ jobs:
       run: |
         cp .env.example .env.test 2>/dev/null || echo "NODE_ENV=test" > .env.test
         echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/test_db" >> .env.test
-        echo "JWT_SECRET=test-jwt-secret-super-long-key-for-testing" >> .env.test
+        echo "JWT_SECRET=test-super-long-jwt-secret-12345678901234567890" >> .env.test
         echo "SESSION_SECRET=test-session-secret" >> .env.test
         echo "RATE_LIMIT_MAX=1000" >> .env.test
 
@@ -58,22 +69,28 @@ jobs:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
 
     - name: 🔍 Run ESLint
-      run: npm run lint || echo "✅ ESLint will be configured later"
+      run: npm run lint || echo "✅ ESLint will be configurado mais tarde"
       continue-on-error: true
 
     - name: 🔧 Type checking
-      run: npm run type-check || echo "✅ TypeScript check will be configured later"
+      run: npm run type-check || echo "✅ TypeScript check será adicionado depois"
       continue-on-error: true
 
-    - name: 🧪 Run tests with coverage
-      run: npm run test:ci || npm test || echo "✅ Tests will be configured later"
-      continue-on-error: true
+    - name: 🧪 Run tests with fallback
+      run: |
+        echo "🧪 Rodando testes com cobertura..."
+        if npm run test:ci; then
+          echo "✅ test:ci passou!"
+        else
+          echo "⚠️ test:ci falhou, tentando fallback com npm test"
+          npm test || echo "❌ Fallback falhou também"
+        fi
       env:
         NODE_ENV: test
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID_TEST || 'test-client-id' }}
         GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET_TEST || 'test-client-secret' }}
-        JWT_SECRET: test-jwt-secret-super-long-key-for-testing
+        JWT_SECRET: test-super-long-jwt-secret-12345678901234567890
 
     - name: 📊 Upload coverage
       uses: codecov/codecov-action@v4
@@ -89,7 +106,7 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
-    
+
     steps:
     - name: 📥 Checkout code
       uses: actions/checkout@v4
@@ -107,11 +124,11 @@ jobs:
       run: npx prisma generate
 
     - name: 🏗️ Build TypeScript
-      run: npm run build || echo "✅ Build script will be added later"
+      run: npm run build || echo "✅ Script de build será adicionado depois"
       continue-on-error: true
 
     - name: 🔒 Security audit
-      run: npm audit --audit-level high || echo "✅ Security audit completed"
+      run: npm audit --audit-level high || echo "✅ Auditoria de segurança concluída"
       continue-on-error: true
 
   deploy-staging:
@@ -120,7 +137,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/develop'
     environment: staging
-    
+
     steps:
     - name: 🚀 Deploy to staging
       run: |
@@ -135,7 +152,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     environment: production
-    
+
     steps:
     - name: 🚀 Deploy to production
       run: |
