@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { authRoutes } from './auth/index.ts'
+import { authRoutes } from '../features/auth/auth.routes.ts'
 
 export const setupRoutes = async (fastify: FastifyInstance) => {
   // Health check
