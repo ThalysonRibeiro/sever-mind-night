@@ -1,27 +1,44 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
-import { authService } from './auth.service.ts' // Import the new service
-import { createAdminSchema } from './auth.types.ts' // Keep this import for schema validation
+import { authService } from './auth.service.ts'
+import { createAdminSchema } from './auth.types.ts'
 
-const googleCallbackSchema = z.object({
+// Tipos inferidos dos schemas
+const googleCallbackQuerySchema = z.object({
   code: z.string(),
   state: z.string().optional(),
 })
 
+const nextjsSigninSchema = z.object({
+  email: z.string().email(),
+  name: z.string().optional(),
+  image: z.string().optional(),
+  googleId: z.string(),
+  verified: z.boolean(),
+})
+
+type GoogleCallbackQuery = z.infer<typeof googleCallbackQuerySchema>
+type NextjsSigninBody = z.infer<typeof nextjsSigninSchema>
+type CreateAdminBody = z.infer<typeof createAdminSchema>
+
 export const authControllers = {
   // Redirect to Google OAuth
   async googleRedirect(request: FastifyRequest, reply: FastifyReply) {
-    const authUrl = authService.getGoogleAuthUrl() // Use service method
+    const authUrl = authService.getGoogleAuthUrl()
     return reply.redirect(authUrl)
   },
 
   // Handle Google OAuth callback
-  async googleCallback(request: FastifyRequest, reply: FastifyReply) {
+  async googleCallback(
+    request: FastifyRequest<{ Querystring: GoogleCallbackQuery }>,
+    reply: FastifyReply
+  ) {
     try {
-      const { code } = googleCallbackSchema.parse(request.query)
-      const user = await authService.handleGoogleCallback(code) // Use service method
+      // Não precisa validar - já foi validado pelo fastify-type-provider-zod
+      const { code } = request.query
+      const user = await authService.handleGoogleCallback(code)
 
-      // Generate JWT token (this part remains in controller as it depends on request.server.jwt)
+      // Generate JWT token
       const token = request.server.jwt.sign({
         userId: user.id,
         email: user.email,
@@ -60,18 +77,14 @@ export const authControllers = {
   },
 
   // Handle NextJS Auth signin
-  async nextjsSignin(request: FastifyRequest, reply: FastifyReply) {
-    const nextjsSigninSchema = z.object({
-      email: z.string().email(),
-      name: z.string().optional(),
-      image: z.string().optional(),
-      googleId: z.string(), // This is not used in the service, but kept for schema validation
-      verified: z.boolean(),
-    })
-
+  async nextjsSignin(
+    request: FastifyRequest<{ Body: NextjsSigninBody }>,
+    reply: FastifyReply
+  ) {
     try {
-      const { email, name, image, verified } = nextjsSigninSchema.parse(request.body)
-      const user = await authService.handleNextjsSignin(email, name, image, verified) // Use service method
+      // Não precisa validar - já foi validado pelo fastify-type-provider-zod
+      const { email, name, image, verified } = request.body
+      const user = await authService.handleNextjsSignin(email, name, image, verified)
 
       return {
         user: {
@@ -85,7 +98,10 @@ export const authControllers = {
       }
     } catch (error) {
       request.log.error('NextJS signin error:', error)
-      return reply.code(400).send({ error: 'Signin failed' })
+      return reply.code(500).send({
+        error: 'Internal server error',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      })
     }
   },
 
@@ -93,7 +109,7 @@ export const authControllers = {
   async logout(request: FastifyRequest, reply: FastifyReply) {
     try {
       reply.clearCookie('auth-token')
-      await authService.logoutUser(request.user?.userId) // Use service method
+      await authService.logoutUser((request as any).user?.userId)
       return { message: 'Logged out successfully' }
     } catch (error) {
       request.log.error('Logout error:', error)
@@ -106,8 +122,8 @@ export const authControllers = {
   // Get current user
   async getMe(request: FastifyRequest, reply: FastifyReply) {
     try {
-      const jwtUser = request.user as any
-      const user = await authService.getMe(jwtUser.userId) // Use service method
+      const jwtUser = (request as any).user
+      const user = await authService.getMe(jwtUser.userId)
 
       if (!user) {
         return reply.code(404).send({ error: 'User not found' })
@@ -122,16 +138,14 @@ export const authControllers = {
   },
 
   // Create admin
-  async createAdmin(request: FastifyRequest, reply: FastifyReply) {
+  async createAdmin(
+    request: FastifyRequest<{ Body: CreateAdminBody }>,
+    reply: FastifyReply
+  ) {
     try {
-      const parsed = createAdminSchema.safeParse(request.body)
-
-      if (!parsed.success) {
-        return reply.status(400).send({ error: 'Invalid input', details: parsed.error })
-      }
-
-      const { adminSecret, email, password, name, phone } = parsed.data
-      const user = await authService.createAdmin(adminSecret, email, password, name, phone) // Use service method
+      // Não precisa validar - já foi validado pelo fastify-type-provider-zod
+      const { adminSecret, email, password, name, phone } = request.body
+      const user = await authService.createAdmin(adminSecret, email, password, name, phone)
 
       return reply.status(201).send({
         message: 'Admin created successfully',
@@ -150,14 +164,14 @@ export const authControllers = {
         }
       })
     } catch (error) {
-      console.log('Create admin error:', error);
+      console.log('Create admin error:', error)
       request.log.error('Create admin error:', error)
       if (error instanceof Error) {
         if (error.message === 'Unauthorized') {
-          return reply.status(403).send({ error: 'Unauthorized' });
+          return reply.status(403).send({ error: 'Unauthorized' })
         }
         if (error.message === 'User already exists') {
-          return reply.code(409).send({ error: 'User already exists' });
+          return reply.code(409).send({ error: 'User already exists' })
         }
       }
       return reply.code(400).send({ error: 'Failed to create admin' })
@@ -166,7 +180,7 @@ export const authControllers = {
 
   async getAdmin(request: FastifyRequest, reply: FastifyReply) {
     try {
-      const usersAdmin = await authService.getAdminUsers() // Use service method
+      const usersAdmin = await authService.getAdminUsers()
       return { usersAdmin }
     } catch (error) {
       request.log.error('get admin error:', error)

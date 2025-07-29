@@ -1,8 +1,8 @@
 
 import Fastify from 'fastify';
-import { setupRoutes } from './routes/index.ts';
 import { setupPlugins } from './plugins/index.ts';
 import { config } from './config/env.ts';
+import { setupRoutes } from './routes/index.ts';
 
 export const build = async () => {
   const fastify = Fastify({

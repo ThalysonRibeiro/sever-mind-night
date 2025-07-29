@@ -1,29 +1,74 @@
+// routes/auth/index.ts
 import type { FastifyInstance } from 'fastify'
-import { googleAuthRoutes } from './google.ts'
-import { nextjsAuthRoutes } from './nextjs.ts'
-import { authControllers } from '../../controllers/auth/index.ts'
-import { adminRoutes } from './admin.ts'
+import { z } from 'zod'
+import { authControllers } from '../../features/auth/auth.controller.ts'
+import { createAdminSchema, createAdminResponseSchema } from '../../features/auth/auth.types.ts'
+
+// Schemas Zod para todas as rotas
+const googleCallbackQuerySchema = z.object({
+  code: z.string(),
+  state: z.string().optional()
+})
+
+const nextjsSigninSchema = z.object({
+  email: z.string().email(),
+  name: z.string().optional(),
+  image: z.string().optional(),
+  googleId: z.string(),
+  verified: z.boolean()
+})
 
 export const authRoutes = async (fastify: FastifyInstance) => {
-  // Google auth routes (original)
-  await fastify.register(googleAuthRoutes, { prefix: '/google' })
+  // Google auth routes
+  fastify.get('/google', {
+    schema: {
+      tags: ['Auth'],
+      summary: 'Redirect to Google OAuth',
+    }
+  }, authControllers.googleRedirect)
+
+  fastify.get('/google/callback', {
+    schema: {
+      tags: ['Auth'],
+      summary: 'Google OAuth callback',
+      querystring: googleCallbackQuerySchema, // Use Zod schema
+    }
+  }, authControllers.googleCallback)
 
   // NextJS auth integration
-  await fastify.register(nextjsAuthRoutes, { prefix: '/nextjs' })
+  fastify.post('/nextjs/signin', {
+    schema: {
+      tags: ['Auth'],
+      summary: 'Handle NextJS Auth signin',
+      body: nextjsSigninSchema, // Use Zod schema
+    }
+  }, authControllers.nextjsSignin)
 
-  await fastify.register(adminRoutes, { prefix: '/admin' })
+  // Admin routes
+  fastify.post('/admin', {
+    schema: {
+      tags: ['Admin'],
+      summary: 'Create a new admin user',
+      body: createAdminSchema, // Já é um schema Zod
+      response: {
+        201: createAdminResponseSchema,
+      }
+    },
+  }, authControllers.createAdmin)
+
+  fastify.get('/admin', {
+    preHandler: [fastify.authenticate, fastify.verifyAdmin],
+    schema: {
+      tags: ['Admin'],
+      summary: 'Get all admin users',
+    },
+  }, authControllers.getAdmin)
 
   // Logout route
   fastify.post('/logout', {
     schema: {
       tags: ['Auth'],
       summary: 'Logout user',
-      response: {
-        200: {
-          type: 'object',
-          properties: { message: { type: 'string' } }
-        }
-      }
     }
   }, authControllers.logout)
 
