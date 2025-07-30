@@ -4,6 +4,7 @@ import jwt from '@fastify/jwt'
 import cookie from '@fastify/cookie'
 import swagger from '@fastify/swagger'
 import swaggerUi from '@fastify/swagger-ui'
+
 import { config } from '../config/env.ts'
 import cors from "./cors.ts";
 import rateLimitPlugin from "./rateLimitPlugin.ts";
@@ -18,13 +19,20 @@ export const setupPlugins = async (fastify: FastifyInstance) => {
 
   // Rate Limit
   await fastify.register(rateLimitPlugin, {
-    max: 100, // Máximo de requisições
-    timeWindow: '1 minute', // Janela de tempo para o limite
-    // keyGenerator: (request: FastifyRequest) => request.ip, // Gera a chave baseada no IP do cliente
-    // skipOnError: true, // Ignora erros de limite de taxa
-    // onExceeded: (request: FastifyRequest, reply: FastifyReply) => {
-    //   reply.code(429).send({ error: 'Too many requests' })
-    // }
+    max: 100,
+    timeWindow: '1 minute',
+    keyGenerator: (request: FastifyRequest) => {
+      // Considera tanto IP quanto user ID se autenticado
+      const userId = (request.user as any)?.userId;
+      return userId ? `user_${userId}` : `ip_${request.ip}`
+    },
+    skipOnError: false,
+    onExceeded: (request: FastifyRequest, reply: FastifyReply) => {
+      reply.code(429).send({
+        error: 'Too many requests',
+        retryAfter: 60
+      })
+    }
   })
 
   // Cookie
@@ -49,32 +57,25 @@ export const setupPlugins = async (fastify: FastifyInstance) => {
   // Swagger
   if (config.NODE_ENV === 'development') {
     await fastify.register(swagger, {
-      swagger: {
+      openapi: {
         info: {
-          title: 'Dream Journal API',
-          description: 'API para aplicativo de diário de sonhos',
+          title: 'Mind Night API',
+          description: 'API for Mind Night application',
           version: '1.0.0',
         },
-        schemes: ['http'],
-        consumes: ['application/json'],
-        produces: ['application/json'],
-        securityDefinitions: {
-          Bearer: {
-            type: 'apiKey',
-            name: 'Authorization',
-            in: 'header'
-          }
-        }
-      },
+        components: {
+          securitySchemes: {
+            Bearer: {
+              type: 'apiKey',
+              name: 'Authorization',
+              in: 'header',
+            },
+          },
+        },
+      }
     })
-
     await fastify.register(swaggerUi, {
       routePrefix: '/docs',
-      uiConfig: {
-        docExpansion: 'list',
-        deepLinking: false,
-      },
-      staticCSP: true, // Adicionando esta linha
     })
   }
 
