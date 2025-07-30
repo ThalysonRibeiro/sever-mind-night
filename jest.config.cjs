@@ -5,7 +5,13 @@ module.exports = {
   roots: ['<rootDir>/src', '<rootDir>/tests'],
   testMatch: ['**/tests/**/*.test.ts'],
   transform: {
-    '^.+\\.ts$': 'ts-jest',
+    '^.+\\.ts$': ['ts-jest', {
+      useESM: false,
+      tsconfig: {
+        module: 'commonjs',
+        target: 'es2020'
+      }
+    }],
   },
   coverageDirectory: 'coverage',
   collectCoverageFrom: [
@@ -23,4 +29,5 @@ module.exports = {
   verbose: true,
   clearMocks: true,
   resetMocks: true,
+  extensionsToTreatAsEsm: [],
 };

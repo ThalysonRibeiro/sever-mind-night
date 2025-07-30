@@ -1,139 +1,190 @@
-import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { FastifyInstance } from 'fastify';
-import { build } from '../../src/app.ts';
-import { getAuthToken } from '../utils/helpers.ts';
+// tests/routes/auth.test.ts
+import { describe, it, expect, beforeAll, afterAll, jest } from '@jest/globals'
+import type { FastifyInstance } from 'fastify'
+import { closeTestApp, createTestApp } from '../utils/helpers.ts'
+import { authService } from '../../src/features/auth/auth.service.ts'
 
-// Mocks completos
-jest.mock('../../src/lib/prisma', () => ({
-  prisma: {
-    user: {
-      findUnique: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-    },
-    userSettings: {
-      create: jest.fn(),
-    },
-    userStats: {
-      create: jest.fn(),
-    },
-    interpretationQuota: {
-      create: jest.fn(),
-    },
-    auditLog: {
-      create: jest.fn(),
-    },
-    $transaction: jest.fn((callback: any) => callback({
-      user: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
-      userSettings: { create: jest.fn() },
-      userStats: { create: jest.fn() },
-      interpretationQuota: { create: jest.fn() },
-      auditLog: { create: jest.fn() },
-    })),
+// Mock do authService
+jest.mock('../../src/features/auth/auth.service.ts', () => ({
+  authService: {
+    handleNextjsSignin: jest.fn(),
+    getGoogleAuthUrl: jest.fn(() => 'https://accounts.google.com/oauth/authorize'),
+    handleGoogleCallback: jest.fn(),
+    logoutUser: jest.fn(),
+    getMe: jest.fn(),
   },
-}));
+}))
 
-jest.mock('../../src/lib/google-auth', () => ({
-  getGoogleAuthUrl: jest.fn(() => 'https://accounts.google.com/oauth/authorize'),
-  getGoogleUserInfo: jest.fn(),
-}));
+describe('Auth Routes', () => {
+  let app: FastifyInstance
 
-jest.mock('bcrypt', () => ({
-  hash: jest.fn(),
-}));
+  beforeAll(async () => {
+    app = await createTestApp()
+  })
 
-describe('Auth Routes - Simple Tests', () => {
-  let fastify: FastifyInstance;
+  afterAll(async () => {
+    await closeTestApp(app)
+  })
 
-  beforeEach(async () => {
-    fastify = await build();
-    jest.clearAllMocks();
-  });
+  describe('POST /auth/nextjs/signin', () => {
+    it('should create new user on first signin', async () => {
+      const payload = {
+        email: 'test@example.com',
+        name: 'Test User',
+        googleId: '123456789',
+        verified: true,
+        image: 'https://example.com/avatar.jpg',
+      }
 
-  afterEach(async () => {
-    await fastify.close();
-  });
+      const mockUser = {
+        id: 'user-1',
+        ...payload,
+        plan: 'TRIAL',
+        role: 'USER',
+      }
 
-  describe('GET /auth/me', () => {
-    it('should return 401 when not authenticated', async () => {
-      const response = await fastify.inject({
-        method: 'GET',
-        url: '/auth/me',
-      });
+      // @ts-ignore
+      authService.handleNextjsSignin.mockResolvedValue(mockUser)
 
-      expect(response.statusCode).toBe(401);
-    });
+      const response = await app.inject({
+        method: 'POST',
+        url: '/auth/nextjs/signin',
+        payload,
+      })
 
-    it('should return 401 with invalid token', async () => {
-      const response = await fastify.inject({
-        method: 'GET',
-        url: '/auth/me',
-        headers: {
-          authorization: 'Bearer invalid-token',
-        },
-      });
+      expect(response.statusCode).toBe(200)
+      const body = JSON.parse(response.body)
+      expect(body.user.email).toBe(payload.email)
+      expect(authService.handleNextjsSignin).toHaveBeenCalledWith(
+        payload.email,
+        payload.name,
+        payload.image,
+        payload.verified
+      )
+    })
 
-      expect(response.statusCode).toBe(401);
-    });
-  });
+    it('should return existing user on subsequent signin', async () => {
+      const payload = {
+        email: 'existing@example.com',
+        name: 'Existing User',
+        googleId: '987654321',
+        verified: true,
+      }
+      const mockUser = { id: 'user-2', ...payload, plan: 'TRIAL', role: 'USER' }
+
+      // @ts-ignore
+      authService.handleNextjsSignin.mockResolvedValue(mockUser)
+
+      // Primeira chamada
+      await app.inject({
+        method: 'POST',
+        url: '/auth/nextjs/signin',
+        payload,
+      })
+
+      // Segunda chamada
+      const response = await app.inject({
+        method: 'POST',
+        url: '/auth/nextjs/signin',
+        payload,
+      })
+
+      expect(response.statusCode).toBe(200)
+      const body = JSON.parse(response.body)
+      expect(body.user.id).toBe(mockUser.id) // Garante que o mesmo usuário foi retornado
+    })
+  })
 
   describe('GET /auth/google', () => {
     it('should redirect to Google OAuth', async () => {
-      const response = await fastify.inject({
+      // @ts-ignore
+      authService.getGoogleAuthUrl.mockReturnValue('https://accounts.google.com/oauth/authorize')
+
+      const response = await app.inject({
         method: 'GET',
         url: '/auth/google',
-      });
+      })
 
-      expect(response.statusCode).toBe(302);
-      expect(response.headers.location).toBeDefined();
-    });
-  });
+      expect(response.statusCode).toBe(302)
+      expect(response.headers.location).toBe('https://accounts.google.com/oauth/authorize')
+    })
+  })
 
   describe('GET /auth/google/callback', () => {
-    it('should handle missing code parameter', async () => {
-      const response = await fastify.inject({
+    it('should handle successful callback', async () => {
+      const mockUser = {
+        id: 'user-3',
+        email: 'google@example.com',
+        plan: 'TRIAL',
+        role: 'USER',
+      }
+      // @ts-ignore
+      authService.handleGoogleCallback.mockResolvedValue(mockUser)
+
+      const response = await app.inject({
         method: 'GET',
-        url: '/auth/google/callback',
-      });
+        url: '/auth/google/callback?code=mock-code',
+      })
 
-      // Deve retornar 400 ou 500, mas não deve quebrar
-      expect(response.statusCode).toBeGreaterThanOrEqual(400);
-    });
-  });
+      expect(response.statusCode).toBe(200)
+      const body = JSON.parse(response.body)
+      expect(body.user.id).toBe(mockUser.id)
+      expect(authService.handleGoogleCallback).toHaveBeenCalledWith('mock-code')
+    })
+  })
 
-  describe('POST /auth/nextjs/signin', () => {
-    it('should handle missing required fields', async () => {
-      const incompleteData = {
-        email: 'test@example.com',
-        // missing googleId
-        verified: true,
-      };
-
-      const response = await fastify.inject({
+  describe('POST /auth/logout', () => {
+    it('should logout successfully', async () => {
+      const response = await app.inject({
         method: 'POST',
-        url: '/auth/nextjs/signin',
-        payload: incompleteData,
-      });
+        url: '/auth/logout',
+      })
 
-      // Deve retornar 400 ou 500, mas não deve quebrar
-      expect(response.statusCode).toBeGreaterThanOrEqual(400);
-    });
+      expect(response.statusCode).toBe(200)
+      const body = JSON.parse(response.body)
+      expect(body.message).toBe('Logged out successfully')
+    })
+  })
 
-    it('should handle invalid email', async () => {
-      const invalidData = {
-        email: 'test@example.com', // Este email está na lista de bloqueados
-        googleId: 'google-123',
-        verified: true,
-      };
+  describe('GET /auth/me', () => {
+    it('should require authentication', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/auth/me',
+      })
 
-      const response = await fastify.inject({
-        method: 'POST',
-        url: '/auth/nextjs/signin',
-        payload: invalidData,
-      });
+      expect(response.statusCode).toBe(401)
+    })
 
-      // Deve retornar 400 ou 500, mas não deve quebrar
-      expect(response.statusCode).toBeGreaterThanOrEqual(400);
-    });
-  });
-}); 
+    it('should return user data when authenticated', async () => {
+      const mockUser = {
+        id: 'user-4',
+        email: 'me@example.com',
+        plan: 'PREMIUM',
+        role: 'USER',
+      }
+      // @ts-ignore
+      authService.getMe.mockResolvedValue(mockUser)
+
+      const token = app.jwt.sign({
+        userId: mockUser.id,
+        email: mockUser.email,
+        plan: mockUser.plan as 'TRIAL' | 'PREMIUM', // Cast to valid plan type
+        role: mockUser.role as 'USER' | 'ADMIN',
+      })
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/auth/me',
+        headers: {
+          authorization: `Bearer ${token}`,
+        },
+      })
+
+      expect(response.statusCode).toBe(200)
+      const body = JSON.parse(response.body)
+      expect(body.user.id).toBe(mockUser.id)
+      expect(authService.getMe).toHaveBeenCalledWith(mockUser.id)
+    })
+  })
+})

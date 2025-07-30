@@ -57,11 +57,16 @@ export const authRoutes = async (fastify: FastifyInstance) => {
   }, authControllers.createAdmin)
 
   fastify.get('/admin', {
-    preHandler: [fastify.authenticate, fastify.verifyAdmin],
     schema: {
       tags: ['Admin'],
       summary: 'Get all admin users',
+      response: {
+        200: z.object({
+          usersAdmin: z.array(z.object({ id: z.string(), email: z.string() })),
+        }),
+      },
     },
+    preHandler: [fastify.authenticate, fastify.verifyAdmin],
   }, authControllers.getAdmin)
 
   // Logout route

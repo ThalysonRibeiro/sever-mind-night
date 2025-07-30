@@ -12,6 +12,12 @@ export const setupRoutes = async (fastify: FastifyInstance) => {
     await fastify.register(authRoutes, { prefix: '/auth' })
   })
 
+  // Registrar rotas padrão
+  await server.register(async function (fastify) {
+    const { defaultRoutes } = await import('./default/index.ts')
+    await fastify.register(defaultRoutes)
+  })
+
   // Registrar outras rotas se houver
   // await server.register(async function (fastify) {
   //   const { otherRoutes } = await import('./other/index.ts')
