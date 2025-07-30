@@ -1,11 +1,5 @@
-
-// import { FastifyInstance } from 'fastify';
-
-// export const getAuthToken = async (fastify: FastifyInstance, userId: string, role: 'USER' | 'ADMIN') => {
-//   return fastify.jwt.sign({ userId, role, email: 'test@example.com', plan: 'FREE' });
-// };
-// tests/utils/helpers.ts
-import { FastifyInstance } from 'fastify';
+import { build } from '../../src/app.ts'
+import type { FastifyInstance } from 'fastify'
 
 export const getAuthToken = async (
   fastify: FastifyInstance,
@@ -24,30 +18,42 @@ export const getAuthToken = async (
   return token;
 };
 
-export const createMockUser = (overrides: any = {}) => {
-  return {
-    id: 'mock-user-id',
-    email: 'test@example.com',
-    name: 'Test User',
-    role: 'USER',
-    plan: 'FREE',
-    image: null,
-    timezone: 'UTC',
-    language: 'en',
-    lastActive: new Date(),
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    ...overrides,
-  };
-};
 
-export const createMockAdmin = (overrides: any = {}) => {
-  return createMockUser({
-    role: 'ADMIN',
-    plan: 'PREMIUM',
-    email: 'admin@example.com',
-    name: 'Admin User',
-    phone: '(11) 99999-9999',
-    ...overrides,
-  });
-};
+export const createTestApp = async (): Promise<FastifyInstance> => {
+  // Use a mesma função build do app, mas em modo test
+  process.env.NODE_ENV = 'test'
+
+  const app = await build()
+
+  // Aguarda o app estar pronto para receber requests
+  await app.ready()
+
+  return app
+}
+
+export const closeTestApp = async (app: FastifyInstance) => {
+  await app.close()
+}
+
+// Mock do Prisma para testes (opcional)
+export const mockPrisma = {
+  user: {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    findMany: jest.fn(),
+  },
+  userSettings: {
+    create: jest.fn(),
+  },
+  userStats: {
+    create: jest.fn(),
+  },
+  interpretationQuota: {
+    create: jest.fn(),
+  },
+  auditLog: {
+    create: jest.fn(),
+  },
+  $transaction: jest.fn(),
+}
