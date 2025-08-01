@@ -60,6 +60,10 @@ jobs:
         echo "JWT_SECRET=test-super-long-jwt-secret-12345678901234567890" >> .env.test
         echo "SESSION_SECRET=test-session-secret" >> .env.test
         echo "RATE_LIMIT_MAX=1000" >> .env.test
+        echo "UPSTASH_REDIS_REST_URL=https://test-redis-url.upstash.io" >> .env.test
+        echo "UPSTASH_REDIS_REST_TOKEN=test_redis_token_12345" >> .env.test
+        echo "BYPASS_RATE_LIMIT=true" >> .env.test
+        echo "DISABLE_RATE_LIMIT=true" >> .env.test
 
     - name: 🗄️ Setup Prisma
       run: |
