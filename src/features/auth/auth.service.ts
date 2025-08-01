@@ -4,6 +4,8 @@ import { addWeeks } from 'date-fns'
 import { PLANS_INTERPRETATION_QUOTA } from '../../utils/constants.ts'
 import bcrypt from 'bcrypt'
 import { createAdminSchema } from './auth.types.ts' // Importar o schema para validação no serviço
+import { UnauthorizedError, UserAlreadyExistsError, ValidationError } from '../../shared/errors/AppError.ts'
+import { isValidEmail } from '../../utils/emailValidation.ts'
 
 // FUNÇÃO HELPER PARA EVITAR DUPLICAÇÃO DE CÓDIGO
 async function createUserWithRelatedRecords(userData: {
@@ -183,16 +185,20 @@ export const authService = {
   },
 
   async createAdmin(adminSecret: string, email: string, password: string, name: string | undefined, phone: string | undefined) {
-    if (adminSecret !== process.env.ADMIN_SECRET) {
-      throw new Error('Unauthorized');
+    if (!process.env.ADMIN_SECRET || adminSecret !== process.env.ADMIN_SECRET) {
+      throw new UnauthorizedError('Invalid or missing admin secret');
     }
 
-    let user = await prisma.user.findUnique({
-      where: { email }
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
     });
 
-    if (user) {
-      throw new Error('User already exists');
+    if (existingUser) {
+      throw new UserAlreadyExistsError(`User with email ${email} already exists`);
+    }
+
+    if (!isValidEmail(email)) {
+      throw new ValidationError('Invalid email format');
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);

@@ -9,33 +9,17 @@ import { config } from '../config/env.ts'
 import cors from "./cors.ts";
 import rateLimitPlugin from "./rateLimitPlugin.ts";
 import { verifyRole } from './auth.ts'
+import { defaultRateLimitConfig } from '../config/rateLimitConfig.ts'
 
 export const setupPlugins = async (fastify: FastifyInstance) => {
   // 💡 Habilita uso nativo de Zod nos schemas
   fastify.setValidatorCompiler(validatorCompiler)
   fastify.setSerializerCompiler(serializerCompiler)
-  // CORS
+
+  // CORS - primeiro
   await fastify.register(cors)
 
-  // Rate Limit
-  await fastify.register(rateLimitPlugin, {
-    max: 100,
-    timeWindow: '1 minute',
-    keyGenerator: (request: FastifyRequest) => {
-      // Considera tanto IP quanto user ID se autenticado
-      const userId = (request.user as any)?.userId;
-      return userId ? `user_${userId}` : `ip_${request.ip}`
-    },
-    skipOnError: false,
-    onExceeded: (request: FastifyRequest, reply: FastifyReply) => {
-      reply.code(429).send({
-        error: 'Too many requests',
-        retryAfter: 60
-      })
-    }
-  })
-
-  // Cookie
+  // JWT e Cookie - ANTES do rate limit (necessário para autenticação)
   await fastify.register(cookie, {
     secret: config.JWT_SECRET,
     parseOptions: {
@@ -45,7 +29,6 @@ export const setupPlugins = async (fastify: FastifyInstance) => {
     }
   })
 
-  // JWT
   await fastify.register(jwt, {
     secret: config.JWT_SECRET,
     cookie: {
@@ -54,7 +37,30 @@ export const setupPlugins = async (fastify: FastifyInstance) => {
     }
   })
 
-  // Swagger
+  // Decorar métodos de autenticação ANTES do rate limit
+  fastify.decorate('authenticate', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      await request.jwtVerify()
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Invalid token'
+      reply.code(401).send({
+        error: 'Unauthorized',
+        message: errorMessage
+      })
+    }
+  })
+
+  fastify.decorate('verifyRole', verifyRole)
+  fastify.decorate('verifyAdmin', verifyRole('ADMIN'))
+
+  // Rate Limit - DEPOIS da autenticação estar configurada
+  await fastify.register(rateLimitPlugin, {
+    maxRequests: 150,
+    enableLogs: true,
+    skipRoutes: ['/docs', '/health', '/metrics', '/favicon.ico']
+  })
+
+  // Swagger - por último (desenvolvimento)
   if (config.NODE_ENV === 'development') {
     await fastify.register(swagger, {
       openapi: {
@@ -66,10 +72,15 @@ export const setupPlugins = async (fastify: FastifyInstance) => {
         components: {
           securitySchemes: {
             Bearer: {
-              type: 'apiKey',
-              name: 'Authorization',
-              in: 'header',
+              type: 'http',
+              scheme: 'bearer',
+              bearerFormat: 'JWT',
             },
+            Cookie: {
+              type: 'apiKey',
+              in: 'cookie',
+              name: 'auth-token'
+            }
           },
         },
       }
@@ -78,17 +89,4 @@ export const setupPlugins = async (fastify: FastifyInstance) => {
       routePrefix: '/docs',
     })
   }
-
-  // Auth decorator
-  fastify.decorate('authenticate', async (request: FastifyRequest, reply: FastifyReply) => {
-    try {
-      await request.jwtVerify()
-    } catch (err) {
-      reply.code(401).send({ error: 'Unauthorized' })
-    }
-  })
-
-  // Role verification decorator
-  fastify.decorate('verifyRole', verifyRole)
-  fastify.decorate('verifyAdmin', verifyRole('admin'))
 }

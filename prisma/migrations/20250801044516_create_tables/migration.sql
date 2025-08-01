@@ -9,6 +9,7 @@ CREATE TABLE "User" (
     "id" TEXT NOT NULL,
     "name" TEXT,
     "email" TEXT NOT NULL,
+    "password" TEXT,
     "emailVerified" TIMESTAMP(3),
     "image" TEXT,
     "phone" TEXT DEFAULT '',
@@ -179,6 +180,19 @@ CREATE TABLE "UserStats" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "UserStats_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "InterpretationQuota" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "dailyCredits" INTEGER DEFAULT 0,
+    "weeklyCredits" INTEGER DEFAULT 0,
+    "nextResetDate" TIMESTAMP(3) NOT NULL,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "InterpretationQuota_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -389,6 +403,9 @@ CREATE INDEX "UserStats_streakDays_idx" ON "UserStats"("streakDays");
 CREATE INDEX "UserStats_lastDreamDate_idx" ON "UserStats"("lastDreamDate");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "InterpretationQuota_userId_key" ON "InterpretationQuota"("userId");
+
+-- CreateIndex
 CREATE INDEX "PushNotification_userId_idx" ON "PushNotification"("userId");
 
 -- CreateIndex
@@ -510,6 +527,9 @@ ALTER TABLE "UserSettings" ADD CONSTRAINT "UserSettings_userId_fkey" FOREIGN KEY
 
 -- AddForeignKey
 ALTER TABLE "UserStats" ADD CONSTRAINT "UserStats_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "InterpretationQuota" ADD CONSTRAINT "InterpretationQuota_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "PushNotification" ADD CONSTRAINT "PushNotification_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
