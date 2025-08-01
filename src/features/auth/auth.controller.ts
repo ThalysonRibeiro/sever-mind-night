@@ -2,6 +2,7 @@ import type { FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
 import { authService } from './auth.service.ts'
 import { createAdminSchema } from './auth.types.ts'
+import { AppError, createErrorResponse, InternalServerError } from '../../shared/errors/AppError.ts'
 
 // Tipos inferidos dos schemas
 const googleCallbackQuerySchema = z.object({
@@ -142,40 +143,25 @@ export const authControllers = {
     request: FastifyRequest<{ Body: CreateAdminBody }>,
     reply: FastifyReply
   ) {
-    try {
-      // Não precisa validar - já foi validado pelo fastify-type-provider-zod
-      const { adminSecret, email, password, name, phone } = request.body
-      const user = await authService.createAdmin(adminSecret, email, password, name, phone)
+    const { adminSecret, email, password, name, phone } = request.body
+    const user = await authService.createAdmin(adminSecret, email, password, name, phone)
 
-      return reply.status(201).send({
-        message: 'Admin created successfully',
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          plan: user.plan,
-          role: user.role,
-          language: user.language,
-          timezone: user.timezone,
-          status: user.status,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt,
-        }
-      })
-    } catch (error) {
-      console.log('Create admin error:', error)
-      request.log.error('Create admin error:', error)
-      if (error instanceof Error) {
-        if (error.message === 'Unauthorized') {
-          return reply.status(403).send({ error: 'Unauthorized' })
-        }
-        if (error.message === 'User already exists') {
-          return reply.code(409).send({ error: 'User already exists' })
-        }
+    return reply.status(201).send({
+      message: 'Admin created successfully',
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        plan: user.plan,
+        role: user.role,
+        language: user.language,
+        timezone: user.timezone,
+        status: user.status,
+        createdAt: user.createdAt.toISOString(),
+        updatedAt: user.updatedAt.toISOString(),
       }
-      return reply.code(400).send({ error: 'Failed to create admin' })
-    }
+    })
   },
 
   async getAdmin(request: FastifyRequest, reply: FastifyReply) {

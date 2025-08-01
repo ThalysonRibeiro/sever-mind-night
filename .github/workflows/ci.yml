@@ -64,7 +64,7 @@ jobs:
     - name: 🗄️ Setup Prisma
       run: |
         npx prisma generate
-        npx prisma db push
+        npx prisma migrate deploy
       env:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
 
@@ -76,15 +76,17 @@ jobs:
       run: npm run type-check || echo "✅ TypeScript check será adicionado depois"
       continue-on-error: true
 
-    - name: 🧪 Run tests with fallback
-      run: |
-        echo "🧪 Rodando testes com cobertura..."
-        if npm run test:ci; then
-          echo "✅ test:ci passou!"
-        else
-          echo "⚠️ test:ci falhou, tentando fallback com npm test"
-          npm test || echo "❌ Fallback falhou também"
-        fi
+    - name: 🧪 Run Integration Tests
+      run: npm run test:ci
+      env:
+        NODE_ENV: test
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID_TEST || 'test-client-id' }}
+        GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET_TEST || 'test-client-secret' }}
+        JWT_SECRET: test-super-long-jwt-secret-12345678901234567890
+
+    - name: 🧪 Run E2E Tests
+      run: npm run test:e2e
       env:
         NODE_ENV: test
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db

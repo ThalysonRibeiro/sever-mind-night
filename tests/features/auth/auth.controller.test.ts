@@ -381,8 +381,8 @@ describe('Auth Controllers', () => {
           language: mockUser.language,
           timezone: mockUser.timezone,
           status: mockUser.status,
-          createdAt: mockUser.createdAt,
-          updatedAt: mockUser.updatedAt,
+          createdAt: mockUser.createdAt.toISOString(),
+          updatedAt: mockUser.updatedAt.toISOString(),
         }
       });
     });
@@ -400,13 +400,10 @@ describe('Auth Controllers', () => {
 
       mockAuthService.createAdmin.mockRejectedValue(new Error('Unauthorized'));
 
-      await authControllers.createAdmin(
+      await expect(authControllers.createAdmin(
         mockRequest,
         mockReply
-      );
-
-      expect(mockReply.status).toHaveBeenCalledWith(403);
-      expect(mockReply.send).toHaveBeenCalledWith({ error: 'Unauthorized' });
+      )).rejects.toThrow('Unauthorized');
     });
 
     it('should handle user already exists', async () => {
@@ -420,13 +417,10 @@ describe('Auth Controllers', () => {
 
       mockAuthService.createAdmin.mockRejectedValue(new Error('User already exists'));
 
-      await authControllers.createAdmin(
+      await expect(authControllers.createAdmin(
         mockRequest,
         mockReply
-      );
-
-      expect(mockReply.code).toHaveBeenCalledWith(409);
-      expect(mockReply.send).toHaveBeenCalledWith({ error: 'User already exists' });
+      )).rejects.toThrow('User already exists');
     });
 
     it('should handle generic errors', async () => {
@@ -440,13 +434,10 @@ describe('Auth Controllers', () => {
 
       mockAuthService.createAdmin.mockRejectedValue(new Error('Database connection failed'));
 
-      await authControllers.createAdmin(
+      await expect(authControllers.createAdmin(
         mockRequest,
         mockReply
-      );
-
-      expect(mockReply.code).toHaveBeenCalledWith(400);
-      expect(mockReply.send).toHaveBeenCalledWith({ error: 'Failed to create admin' });
+      )).rejects.toThrow('Database connection failed');
     });
   });
 

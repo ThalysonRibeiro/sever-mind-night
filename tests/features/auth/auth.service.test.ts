@@ -89,8 +89,11 @@ jest.mock('bcrypt', () => ({
 }));
 
 import * as googleAuth from '../../../src/lib/google-auth.ts';
+import { isValidEmail } from '../../../src/utils/emailValidation.ts';
 import * as bcrypt from 'bcrypt';
 import { authService } from '../../../src/features/auth/auth.service.ts';
+
+jest.mock('../../../src/utils/emailValidation.ts');
 
 const mockGoogleAuth = googleAuth as jest.Mocked<typeof googleAuth>;
 const mockBcrypt = bcrypt as jest.Mocked<typeof bcrypt>;
@@ -445,6 +448,7 @@ describe('Auth Service', () => {
       (mockPrisma.interpretationQuota.create as jest.MockedFunction<any>).mockResolvedValue({});
       (mockPrisma.auditLog.create as jest.MockedFunction<any>).mockResolvedValue({});
       mockBcrypt.hash.mockResolvedValue('hashed-password' as never);
+      (isValidEmail as jest.Mock).mockReturnValue(true);
 
       const result = await authService.createAdmin(
         'test-admin-secret',
@@ -481,7 +485,7 @@ describe('Auth Service', () => {
           'Admin User',
           '11999887766'
         )
-      ).rejects.toThrow('Unauthorized');
+      ).rejects.toThrow('Invalid or missing admin secret');
     });
 
     it('should throw error if user already exists', async () => {
@@ -500,7 +504,22 @@ describe('Auth Service', () => {
           'Admin User',
           '11999887766'
         )
-      ).rejects.toThrow('User already exists');
+      ).rejects.toThrow('User with email admin@example.com already exists');
+    });
+
+    it('should throw error for invalid email format', async () => {
+      (mockPrisma.user.findUnique as jest.MockedFunction<any>).mockResolvedValue(null);
+      (isValidEmail as jest.Mock).mockReturnValue(false);
+
+      await expect(
+        authService.createAdmin(
+          'test-admin-secret',
+          'invalid-email',
+          'SecurePass123!',
+          'Admin User',
+          '11999887766'
+        )
+      ).rejects.toThrow('Invalid email format');
     });
 
     it('should handle missing admin secret environment variable', async () => {
@@ -514,7 +533,7 @@ describe('Auth Service', () => {
           'Admin User',
           '11999887766'
         )
-      ).rejects.toThrow('Unauthorized');
+      ).rejects.toThrow('Invalid or missing admin secret');
     });
   });
 
