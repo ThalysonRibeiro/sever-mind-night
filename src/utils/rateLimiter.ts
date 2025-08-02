@@ -145,6 +145,11 @@ export const clearRateLimit = async (identifier: string, prefix = 'rl_general') 
 
 // Health check do Redis
 export const checkRedisHealth = async (): Promise<boolean> => {
+  // Em ambiente de teste, sempre retorna true para evitar conexões reais
+  if (process.env.NODE_ENV === 'test' || process.env.BYPASS_RATE_LIMIT === 'true') {
+    return true
+  }
+  
   try {
     const result = await redis.ping()
     return result === 'PONG'
