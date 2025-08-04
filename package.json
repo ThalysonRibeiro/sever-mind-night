@@ -44,7 +44,7 @@
     "@fastify/session": "^11.1.0",
     "@fastify/swagger": "^9.5.1",
     "@fastify/swagger-ui": "^5.2.3",
-    "@prisma/client": "^6.12.0",
+    "@prisma/client": "^6.13.0",
     "@upstash/ratelimit": "^2.0.6",
     "@upstash/redis": "^1.35.1",
     "bcrypt": "^6.0.0",
