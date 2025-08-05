@@ -13,30 +13,17 @@ export const getGoogleAuthUrl = () => {
     scope: [
       'https://www.googleapis.com/auth/userinfo.profile',
       'https://www.googleapis.com/auth/userinfo.email'
-    ],
-    include_granted_scopes: true,
+    ]
   })
 }
 
 export const getGoogleUserInfo = async (code: string) => {
   const { tokens } = await googleClient.getToken(code)
-  googleClient.setCredentials(tokens);
+  googleClient.setCredentials(tokens)
 
-  const ticket = await googleClient.verifyIdToken({
-    idToken: tokens.id_token!,
-    audience: config.GOOGLE_CLIENT_ID,
+  const userInfoResponse = await googleClient.request({
+    url: 'https://www.googleapis.com/oauth2/v2/userinfo'
   })
 
-  const payload = ticket.getPayload()
-  if (!payload) {
-    throw new Error('Invalid Google token')
-  }
-
-  return {
-    id: payload.sub,
-    email: payload.email!,
-    name: payload.name!,
-    picture: payload.picture,
-    verified: payload.email_verified || false,
-  }
+  return userInfoResponse.data as any
 }

@@ -1,4 +1,4 @@
-// jest.config.cjs - versão atualizada
+// jest.config.cjs - configuração final
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
@@ -29,5 +29,8 @@ module.exports = {
   verbose: true,
   clearMocks: true,
   resetMocks: true,
-  extensionsToTreatAsEsm: [],
+  transformIgnorePatterns: [
+    'node_modules/(?!(@scalar|dotenv)/)'
+  ],
+  moduleFileExtensions: ['ts', 'js', 'json'],
 };
