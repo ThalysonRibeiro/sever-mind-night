@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod';
 import { isValidEmail } from '../../utils/emailValidation.ts';
 
 export const phoneRegex = /^\(?\d{2}\)?[\s-]?\d{4,5}-?\d{4}$/;

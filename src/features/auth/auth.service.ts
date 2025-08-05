@@ -2,7 +2,7 @@ import { prisma } from '../../lib/prisma.ts'
 import { getGoogleUserInfo, getGoogleAuthUrl } from '../../lib/google-auth.ts'
 import { addWeeks } from 'date-fns'
 import { PLANS_INTERPRETATION_QUOTA } from '../../utils/constants.ts'
-import bcrypt from 'bcrypt'
+import * as bcrypt from 'bcrypt'
 import { createAdminSchema } from './auth.types.ts' // Importar o schema para validação no serviço
 import { UnauthorizedError, UserAlreadyExistsError, ValidationError } from '../../shared/errors/AppError.ts'
 import { isValidEmail } from '../../utils/emailValidation.ts'
@@ -203,7 +203,7 @@ export const authService = {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    user = await prisma.user.create({
+    const user = await prisma.user.create({
       data: {
         email,
         name,

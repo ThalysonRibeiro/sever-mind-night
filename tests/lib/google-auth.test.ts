@@ -1,12 +1,12 @@
 import { describe, it, expect, jest } from '@jest/globals';
-import { googleClient, getGoogleAuthUrl, getGoogleUserInfo } from '../../src/lib/google-auth.ts';
+import { googleClient, getGoogleAuthUrl, getGoogleUserInfo } from '../../src/lib/google-auth';
 
 jest.mock('google-auth-library', () => {
   const mockOAuth2Client = {
     generateAuthUrl: jest.fn(),
     getToken: jest.fn(),
     setCredentials: jest.fn(),
-    verifyIdToken: jest.fn(),
+    request: jest.fn(),
   };
   return {
     OAuth2Client: jest.fn(() => mockOAuth2Client),
@@ -15,7 +15,7 @@ jest.mock('google-auth-library', () => {
 
 describe('Google Auth', () => {
   it('should generate a Google auth URL', () => {
-    const mockUrl = 'https://accounts.google.com/o/oauth2/v2/auth?access_type=offline&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email&include_granted_scopes=true&response_type=code';
+    const mockUrl = 'https://accounts.google.com/o/oauth2/v2/auth?access_type=offline&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email&response_type=code';
     (googleClient.generateAuthUrl as jest.Mock).mockReturnValue(mockUrl);
 
     const url = getGoogleAuthUrl();
@@ -26,47 +26,39 @@ describe('Google Auth', () => {
         'https://www.googleapis.com/auth/userinfo.profile',
         'https://www.googleapis.com/auth/userinfo.email',
       ],
-      include_granted_scopes: true,
     });
     expect(url).toBe(mockUrl);
   });
 
   it('should get Google user info', async () => {
-    const mockTokens = { tokens: { id_token: 'mock-id-token' } };
-    const mockPayload = {
-      sub: 'mock-sub',
+    const mockTokens = { tokens: { access_token: 'mock-access-token' } };
+    const mockUserInfo = {
+      id: 'mock-sub',
       email: 'test@example.com',
       name: 'Test User',
       picture: 'https://example.com/avatar.jpg',
-      email_verified: true,
+      verified_email: true,
     };
 
     (googleClient.getToken as jest.Mock).mockResolvedValue(mockTokens);
-    (googleClient.verifyIdToken as jest.Mock).mockResolvedValue({ getPayload: () => mockPayload });
+    (googleClient.request as jest.Mock).mockResolvedValue({ data: mockUserInfo });
 
     const userInfo = await getGoogleUserInfo('mock-code');
 
     expect(googleClient.getToken).toHaveBeenCalledWith('mock-code');
     expect(googleClient.setCredentials).toHaveBeenCalledWith(mockTokens.tokens);
-    expect(googleClient.verifyIdToken).toHaveBeenCalledWith({
-      idToken: mockTokens.tokens.id_token,
-      audience: process.env.GOOGLE_CLIENT_ID,
+    expect(googleClient.request).toHaveBeenCalledWith({
+      url: 'https://www.googleapis.com/oauth2/v2/userinfo'
     });
-    expect(userInfo).toEqual({
-      id: 'mock-sub',
-      email: 'test@example.com',
-      name: 'Test User',
-      picture: 'https://example.com/avatar.jpg',
-      verified: true,
-    });
+    expect(userInfo).toEqual(mockUserInfo);
   });
 
   it('should throw an error if the payload is invalid', async () => {
-    const mockTokens = { tokens: { id_token: 'mock-id-token' } };
+    const mockTokens = { tokens: { access_token: 'mock-access-token' } };
 
     (googleClient.getToken as jest.Mock).mockResolvedValue(mockTokens);
-    (googleClient.verifyIdToken as jest.Mock).mockResolvedValue({ getPayload: () => null });
+    (googleClient.request as jest.Mock).mockRejectedValue(new Error('Invalid token'));
 
-    await expect(getGoogleUserInfo('mock-code')).rejects.toThrow('Invalid Google token');
+    await expect(getGoogleUserInfo('mock-code')).rejects.toThrow('Invalid token');
   });
 });

@@ -3,13 +3,12 @@ import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod
 import jwt from '@fastify/jwt'
 import cookie from '@fastify/cookie'
 import swagger from '@fastify/swagger'
-import swaggerUi from '@fastify/swagger-ui'
+// import scalarFastifyApiReference from '@scalar/fastify-api-reference'
 
 import { config } from '../config/env.ts'
 import cors from "./cors.ts";
 import rateLimitPlugin from "./rateLimitPlugin.ts";
 import { verifyRole } from './auth.ts'
-import { defaultRateLimitConfig } from '../config/rateLimitConfig.ts'
 
 export const setupPlugins = async (fastify: FastifyInstance) => {
   // 💡 Habilita uso nativo de Zod nos schemas
@@ -85,8 +84,18 @@ export const setupPlugins = async (fastify: FastifyInstance) => {
         },
       }
     })
-    await fastify.register(swaggerUi, {
-      routePrefix: '/docs',
-    })
+
+    // Import dinâmico para evitar problemas nos testes
+    try {
+      const { default: scalarFastifyApiReference } = await import('@scalar/fastify-api-reference')
+      await fastify.register(scalarFastifyApiReference, {
+        routePrefix: '/docs',
+        configuration: {
+          theme: 'bluePlanet'
+        }
+      })
+    } catch (error) {
+      console.warn('Failed to load @scalar/fastify-api-reference:', error)
+    }
   }
 }

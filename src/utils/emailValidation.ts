@@ -1,15 +1,18 @@
 import { INVALID_EMAIL_DOMAINS } from "./invalid-email-domains.ts";
-import { minimatch } from 'minimatch'
 
 export function isValidEmail(email: string): boolean {
-  const normalized = email.toLowerCase().trim()
+  // Verificar se o email tem formato válido
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return false;
+  }
 
-  if (!normalized.includes('@')) return false
+  // Extrair o domínio do email
+  const domain = email.split('@')[1]?.toLowerCase();
+  if (!domain) {
+    return false;
+  }
 
-  const [_, domain] = normalized.split('@')
-
-  // Verifica contra todos os padrões, inclusive wildcards
-  return !INVALID_EMAIL_DOMAINS.some((pattern) =>
-    minimatch(normalized, pattern) || minimatch(domain, pattern)
-  )
+  // Verificar se o domínio está na lista de domínios inválidos
+  return !INVALID_EMAIL_DOMAINS.includes(domain);
 }
