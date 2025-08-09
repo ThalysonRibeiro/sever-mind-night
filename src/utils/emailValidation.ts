@@ -13,6 +13,10 @@ export function isValidEmail(email: string): boolean {
     return false;
   }
 
-  // Verificar se o domínio está na lista de domínios inválidos
-  return !INVALID_EMAIL_DOMAINS.includes(domain);
+  return !INVALID_EMAIL_DOMAINS.some(invalidDomain => {
+    if (invalidDomain.startsWith('*.')) {
+      return domain.endsWith(invalidDomain.replace('*.', ''));
+    }
+    return domain === invalidDomain;
+  });
 }
