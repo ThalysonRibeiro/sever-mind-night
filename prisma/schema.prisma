@@ -19,6 +19,81 @@ enum Role {
   ADMIN
 }
 
+enum DreamCategory {
+  // People-related dreams
+  FAMILY
+  RELATIONSHIPS
+  FRIENDS
+  STRANGERS
+  
+  // Location-based dreams
+  HOME
+  WORK
+  SCHOOL
+  NATURE
+  FANTASY_PLACES
+  
+  // Action and adventure dreams
+  FLYING
+  RUNNING
+  CHASE
+  ADVENTURE
+  TRAVEL
+  
+  // Animal dreams
+  PETS
+  WILD_ANIMALS
+  INSECTS
+  
+  // Life events dreams
+  BIRTH
+  DEATH
+  WEDDING
+  GRADUATION
+  
+  // Natural elements dreams
+  WATER
+  FIRE
+  STORM
+  
+  // Object dreams
+  MONEY
+  FOOD
+  VEHICLES
+  CLOTHES
+  
+  // Emotional dreams
+  NIGHTMARE
+  LUCID_DREAM
+  ANXIETY
+  JOY
+  FEAR
+  
+  // Supernatural abilities dreams
+  SUPERPOWERS
+  INVISIBILITY
+  TELEPATHY
+  
+  // Time-related dreams
+  CHILDHOOD
+  MEMORIES
+  FUTURE
+  
+  // Mystical/spiritual dreams
+  RELIGIOUS
+  SPIRITUAL
+  SUPERNATURAL
+  
+  // Uncategorized dreams
+  OTHER
+}
+enum Theme {
+  Astral
+  Natural
+  Minimal
+  Noturno
+}
+
 model User {
   id                 String    @id @default(cuid())
   name               String?
@@ -155,21 +230,6 @@ model Diaries {
   @@index([userId])
 }
 
-model Category {
-  id          String  @id @default(cuid())
-  name        String  @unique
-  description String?
-  color       String?
-  icon        String?
-
-  dreams Dream[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([name])
-}
-
 model Dream {
   id String @id @default(cuid())
 
@@ -181,9 +241,7 @@ model Dream {
   diariesId String
   diaries   Diaries @relation(fields: [diariesId], references: [id], onDelete: Cascade)
 
-  // Categoria
-  categoryId String?
-  category   Category? @relation(fields: [categoryId], references: [id])
+  category   DreamCategory @default(OTHER)
 
   // Análises adicionais
   duration      String? // "short", "medium", "long"
@@ -212,7 +270,7 @@ model Dream {
 
   @@index([diariesId])
   @@index([createdAt])
-  @@index([categoryId])
+  @@index([category])
   @@index([mood])
   @@index([isPrivate])
   @@index([favorite])

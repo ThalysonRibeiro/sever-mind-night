@@ -8,6 +8,7 @@ const start = async () => {
   try {
     await fastify.listen({ port: config.PORT, host: '0.0.0.0' });
     fastify.log.info(`Server running at http://localhost:${config.PORT}`);
+    fastify.log.info(`Server running at http://localhost:${config.PORT}/docs`);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

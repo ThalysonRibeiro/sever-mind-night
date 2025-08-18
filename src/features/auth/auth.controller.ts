@@ -2,7 +2,7 @@ import type { FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
 import { authService } from './auth.service.ts'
 import { createAdminSchema } from './auth.types.ts'
-import { AppError, createErrorResponse, InternalServerError } from '../../shared/errors/AppError.ts'
+import { AppError, createErrorResponse, DatabaseError, InternalServerError, UnauthorizedError, UserNotFoundError } from '../../shared/errors/AppError.ts'
 
 // Tipos inferidos dos schemas
 const googleCallbackQuerySchema = z.object({
@@ -69,11 +69,7 @@ export const authControllers = {
         token,
       }
     } catch (error) {
-      request.log.error('Google auth error:', error)
-      return reply.code(400).send({
-        error: 'Authentication failed',
-        message: error instanceof Error ? error.message : 'Unknown error'
-      })
+      throw new UnauthorizedError('Authentication failed');
     }
   },
 
@@ -98,11 +94,7 @@ export const authControllers = {
         }
       }
     } catch (error) {
-      request.log.error('NextJS signin error:', error)
-      return reply.code(500).send({
-        error: 'Internal server error',
-        message: error instanceof Error ? error.message : 'Unknown error'
-      })
+      throw new DatabaseError('Database error')
     }
   },
 
@@ -113,29 +105,19 @@ export const authControllers = {
       await authService.logoutUser((request as any).user?.userId)
       return { message: 'Logged out successfully' }
     } catch (error) {
-      request.log.error('Logout error:', error)
-      return reply.code(500).send({
-        error: 'Logout failed'
-      })
+      throw new InternalServerError('Logout failed')
     }
   },
 
   // Get current user
   async getMe(request: FastifyRequest, reply: FastifyReply) {
-    try {
-      const jwtUser = (request as any).user
-      const user = await authService.getMe(jwtUser.userId)
+    const jwtUser = (request as any).user
+    const user = await authService.getMe(jwtUser.userId)
 
-      if (!user) {
-        return reply.code(404).send({ error: 'User not found' })
-      }
-      return { user }
-    } catch (error) {
-      request.log.error('Get me error:', error)
-      return reply.code(500).send({
-        error: 'Failed to get user info'
-      })
+    if (!user) {
+      throw new UserNotFoundError('User not found')
     }
+    return { user }
   },
 
   // Create admin
@@ -169,8 +151,7 @@ export const authControllers = {
       const usersAdmin = await authService.getAdminUsers()
       return { usersAdmin }
     } catch (error) {
-      request.log.error('get admin error:', error)
-      return reply.code(400).send({ error: 'Failed to get admin' })
+      throw new UserNotFoundError('User not found');
     }
   }
 }
