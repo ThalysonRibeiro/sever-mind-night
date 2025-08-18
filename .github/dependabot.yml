@@ -6,3 +6,13 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
     target-branch: "develop"
+
+    # Agrupar todas as dependências em um único PR (opcional)
+    groups:
+      all-deps:
+        patterns:
+          - "*"
+
+    # Configura mensagem de commit/PR
+    commit-message:
+      prefix: "build(deps)"
